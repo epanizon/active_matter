@@ -148,9 +148,17 @@ public:
 
 // random init
 void Particle::random_init(){
-  pos[0] = (double)rand() / RAND_MAX * lx;
-  pos[1] = (double)rand() / RAND_MAX * ly;
-  omega  = (double)rand() / RAND_MAX * M_PI;
+  if (lx) {
+    pos[0] = (double)rand() / RAND_MAX * lx;
+  } else {
+    pos[0] = (double)rand() / RAND_MAX * N;
+  } 
+  if (ly) {
+    pos[1] = (double)rand() / RAND_MAX * ly;
+  } else {
+    pos[1] = (double)rand() / RAND_MAX * N;
+	   }
+ omega  = (double)rand() / RAND_MAX * M_PI;
 }
 
 // functions for keeping particle in BOX.
@@ -215,6 +223,14 @@ ForcesXY Particle::fsub(double x, double y){
   return sub;
 }
 
+void print_data(int it, int N, Particle* P){
+  cout << it*dt << " " ;
+  for (int i=0; i < N; i++){
+    cout << P[i].print_pos()<<" "<<P[i].print_vel()<<" ";
+  }
+  cout << "\n";
+}
+
   // MAIN 
 int main(int argc, char** argv){
   // one day maybe parameters form file
@@ -226,13 +242,34 @@ int main(int argc, char** argv){
 
   // SLIGHTLY LESS STUPID VERSION. 
   Particle* P = new Particle[N];
+  double x;
+  double y;
   
-  // initialization
-  for (int i; i<N; i++){
+  // initialization of the N particles
+  for (int i=0; i<N; i++){
     P[i].random_init();
   }
 
-  for (int i=1; i<=nstep;i++){
+  for (int it=1; it<=nstep;it++){
+    // SUBSTRATE AND RANDOM
+    for (int i=0; i<N; i++){
+      P[i].force();
+    }
+    // INTERACTION BETWEEN PARTICLES
+    for (int i=0; i<N; i++){
+      for (int j=i+1; j<N; j++){
+        //LET's TRY WITHOUT INTERACTIONS.
+	pbc(&P[i],&P[j],x,y);
+        //	  cout << "vettore distanza" << x << " " << y << "\n";
+      }
+    }
+    for (int i=0; i<N; i++){
+      P[i].step();
+    }
+
+    //    if (it%10 == 0){print_data(it, N, P);}
+    print_data(it, N, P);
+    
   }
   
   delete[] P;
