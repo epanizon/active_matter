@@ -5,6 +5,7 @@
 #include <vector>
 #include <cstdlib>
 #include <iostream>
+#include <ctime>
 
 using namespace std;
 
@@ -33,21 +34,26 @@ double vel0{1.0};
 double omega0{0.0};
 double kT{0.5};
 double gam{2};
-// double lx{10};
-// double ly{10};
+double lx{20};
+double ly{12*sqrt(3)};
 double qq{2*M_PI/1}; 
 double U0{0.1};
 double dt{0.01};
 double m{1.0};
+double R0{0.7}
 int N{1};
 int nstep{1000};
+int seed_number{0};
 
 // READ PARAMETERS FUNCTION FROM ROBERTO
 int read_parameters(int argc, char *argv[]){
   char parameter,*endp;
+  //initialize random number generator
+  srand (time(NULL));
   for(int i=1;i<=argc-1;i++){
     parameter=*argv[i];
     switch(parameter){
+    case 'N':N     =strtod(argv[i]+1,&endp);break;
     case 'n':nstep =strtod(argv[i]+1,&endp);break;
     case 'v':vel0  =strtod(argv[i]+1,&endp);break;
     case 'g':gam   =strtod(argv[i]+1,&endp);break;
@@ -57,11 +63,29 @@ int read_parameters(int argc, char *argv[]){
     case 'o':omega0=strtod(argv[i]+1,&endp);break;
     case 'd':dt    =strtod(argv[i]+1,&endp);break;
     case 'q':qq    =strtod(argv[i]+1,&endp);break;
+    case 's':seed_number = strtod(argv[i]+1,&endp);break;
+    case 'x':lx    =strtod(argv[i]+1,&endp);break;
+    case 'y':ly    =strtod(argv[i]+1,&endp);break;
+    case 'r':R0    =strtod(argv[i]+1,&endp);break;
     }
   }
+  if (seed_number){srand(seed_number);}
 return 0;
 }
-
+// PRINT PARAMETER FOR CHECK
+void print_parameters(){
+  cout << "#N  " << N     << "\n";
+  cout << "#n  " << nstep << "\n"; 
+  cout << "#v  " << vel0  << '\n'; 
+  cout << "#g  " << gam   << '\n'; 
+  cout << "#m  " << m     << '\n'; 
+  cout << "#T  " << kT    << '\n'; 
+  cout << "#U  " << U0    << '\n'; 
+  cout << "#o  " << omega0<< '\n'; 
+  cout << "#dt " << dt    << '\n'; 
+  cout << "#q  " << qq    << '\n'; 
+  cout << "#s  " << seed_number << '\n';
+}
 
 // struct of pair of double for force calculations
 struct ForcesXY{
@@ -76,7 +100,7 @@ class Particle{
   double theta {0.0};  // angle of direction
   double omega;        // torque
   // TO BE IMPLEMENTED
-  //  vector<Particle*> NN{} // neighbors
+  vector<int> NN(0); // neighbors
 public:
   // CONSTRUCTOR
   Particle(){
@@ -101,11 +125,16 @@ public:
     vel[1] = y;
   }
   void put_theta(double dir){theta = dir;}
+  void put_force(ForcesXY F){vel[0]+=F.fx; vel[1]+=F.fx}
+  void add_neigh(int neigh){NN.push_back(neigh)}
+  void random_init(){};
 
   // OUTPUT OF DATA. QUITE SHITTY FOR NOW.
   string print_pos(){ return to_string(pos[0]) + " " + to_string(pos[1]);} 
+  double give_posx(){return pos[0]};
+  double give_posy(){return pos[1]};
   string print_vel(){ return to_string(vel[0]) + " " + to_string(vel[1]);}
-  string print_theta(){return to_string(theta);}
+  string print_theta(){return to_string(cos(theta)) + " " + to_string(sin(theta));}
 
   // TIME EVOLUTION
   void step();
@@ -114,24 +143,58 @@ public:
   void force_substrate();
   void force_interaction();
   ForcesXY fsub(double, double);
-
+  // PBC
+  void pbc();
 };
+
+// random init
+void random_init(){
+  pos[0] = (double)rand() / RAND_MAX * lx
+  pos[1] = (double)rand() / RAND_MAX * ly
+  omega  = (double)rand() / RAND_MAX * M_PI
+}
+
+// functions for keeping particle in BOX.
+void Particle::pbc(){
+  if (lx) {pos[0] -= floor(pos[0]/lx)*lx;}
+  if (ly) {pos[1] -= floor(pos[1]/ly)*ly;}
+}
+
+// PBC TO GET REAL VECTOR BETWEEN TWO MOTHERFUCKING PARTICLES.
+void pbc(Particle* P1, Particle* P2, double& x, double& y){
+  x = (*P2).give_posx()-(*P1).give_posx();
+  if (lx){x-=floor(rr[0]/lx)*lx;}
+  y = (*P2).give_posy()-(*P1).give_posy();
+  if (ly){y-=floor(rr[0]/ly)*ly;}
+}
+
+ForcesXY fint(double x, double y){
+  ForcesXY F;
+  double rr;
+  rr = x*x+y*y;
+  rrsur02 = (rr/R0)*(rr/R0);
+  rrsur06 = rrsur02*rrsur02*rrsu02;
+  F.fx = U0*12/rr*(rrsur06*rrsur06*x - rrsur06*x);
+  F.fy = U0*12/rr*(rrsur06*rrsur06*y - rrsur06*y);
+  return F;
+}
 
 // function to make an evolution step
 void Particle::step(){
   pos[0] += (vel[0]+cos(theta)*vel0)*dt/m/gam;
   pos[1] += (vel[1]+sin(theta)*vel0)*dt/m/gam;
+  // PBC refolding
+  if (lx && ly){pbc();}
   theta  += (omega + omega0)*dt/m/gam;
 }
 
-// function to calculate forces
+// function to calculate NON-INTERACTING forces
 void Particle::force(){
   vel[0] = 0.0;
   vel[1] = 0.0;
   omega = 0.0;
   force_random();
   force_substrate();
-  force_interaction();
 }
 
 void Particle::force_random(){
@@ -154,35 +217,38 @@ ForcesXY Particle::fsub(double x, double y){
   return sub;
 }
 
-void Particle::force_interaction(){
-  // to be created
-  //  if (NN == nullptr) return;  
-  return;
-}
-
-
-
   // MAIN 
 int main(int argc, char** argv){
   // one day maybe parameters form file
   if (argc){
     cout << "# INPUT FROM LINE.\n";
     read_parameters(argc, argv);
+    print_parameters();
   }
-  Particle P1;
-  P1.put_pos(1.1,3.2);
-  P1.put_theta(0.2);  
+
+  // SLIGHTLY LESS STUPID VERSION. 
+  new Particle P[N];
+  
+  // initialization
+  for (int i; i<N; i++){
+    P[i].random_init()
+  }
+
   // start data
   cout<<"#initial pos is \n";
   cout<<"0.0 "<<P1.print_pos()<<" "<<P1.print_vel()<<" "<<P1.print_theta()<<"\n";
-
+  P1.add_neigh(&P2);
   for (int i=1; i<=nstep;i++){
     // evolution 
     P1.force();
+    P2.force();
     P1.step();
+    P2.step()
     // print
-    cout<<i*dt<<" "<<P1.print_pos()<<" "<<P1.print_vel()<<" "<<P1.print_theta()<<"\n";
+    cout<<i*dt<<" "<<P1.print_pos()<<" "<<P1.print_theta()<<" "<<P2.print_pos()<<" "<<P2.print_theta()<<"\n";
   }
-
+  
+  delete[] P;
+  P = nullptr;
   return 0;
 }
