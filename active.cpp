@@ -40,7 +40,7 @@ double qq{2*M_PI/1};
 double U0{0.1};
 double dt{0.01};
 double m{1.0};
-double R0{0.7}
+double R0{0.7};
 int N{1};
 int nstep{1000};
 int seed_number{0};
@@ -99,8 +99,6 @@ class Particle{
   double *vel;         // force 
   double theta {0.0};  // angle of direction
   double omega;        // torque
-  // TO BE IMPLEMENTED
-  vector<int> NN(0); // neighbors
 public:
   // CONSTRUCTOR
   Particle(){
@@ -125,14 +123,15 @@ public:
     vel[1] = y;
   }
   void put_theta(double dir){theta = dir;}
-  void put_force(ForcesXY F){vel[0]+=F.fx; vel[1]+=F.fx}
-  void add_neigh(int neigh){NN.push_back(neigh)}
-  void random_init(){};
+  void put_force(ForcesXY F){vel[0]+=F.fx; vel[1]+=F.fx;}
+ //to be added when neighbour list 
+ // void add_neigh(int neigh){NN.push_back(neigh);}
+  void random_init();
 
   // OUTPUT OF DATA. QUITE SHITTY FOR NOW.
   string print_pos(){ return to_string(pos[0]) + " " + to_string(pos[1]);} 
-  double give_posx(){return pos[0]};
-  double give_posy(){return pos[1]};
+  double give_posx(){return pos[0];}
+  double give_posy(){return pos[1];}
   string print_vel(){ return to_string(vel[0]) + " " + to_string(vel[1]);}
   string print_theta(){return to_string(cos(theta)) + " " + to_string(sin(theta));}
 
@@ -148,10 +147,10 @@ public:
 };
 
 // random init
-void random_init(){
-  pos[0] = (double)rand() / RAND_MAX * lx
-  pos[1] = (double)rand() / RAND_MAX * ly
-  omega  = (double)rand() / RAND_MAX * M_PI
+void Particle::random_init(){
+  pos[0] = (double)rand() / RAND_MAX * lx;
+  pos[1] = (double)rand() / RAND_MAX * ly;
+  omega  = (double)rand() / RAND_MAX * M_PI;
 }
 
 // functions for keeping particle in BOX.
@@ -163,17 +162,16 @@ void Particle::pbc(){
 // PBC TO GET REAL VECTOR BETWEEN TWO MOTHERFUCKING PARTICLES.
 void pbc(Particle* P1, Particle* P2, double& x, double& y){
   x = (*P2).give_posx()-(*P1).give_posx();
-  if (lx){x-=floor(rr[0]/lx)*lx;}
+  if (lx){x-=floor(x/lx)*lx;}
   y = (*P2).give_posy()-(*P1).give_posy();
-  if (ly){y-=floor(rr[0]/ly)*ly;}
+  if (ly){y-=floor(y/ly)*ly;}
 }
 
 ForcesXY fint(double x, double y){
   ForcesXY F;
-  double rr;
-  rr = x*x+y*y;
-  rrsur02 = (rr/R0)*(rr/R0);
-  rrsur06 = rrsur02*rrsur02*rrsu02;
+  double rr{x*x+y*y};
+  double rrsur02{(rr/R0)*(rr/R0)};
+  double rrsur06{rrsur02*rrsur02*rrsur02};
   F.fx = U0*12/rr*(rrsur06*rrsur06*x - rrsur06*x);
   F.fy = U0*12/rr*(rrsur06*rrsur06*y - rrsur06*y);
   return F;
@@ -227,25 +225,14 @@ int main(int argc, char** argv){
   }
 
   // SLIGHTLY LESS STUPID VERSION. 
-  new Particle P[N];
+  Particle* P = new Particle[N];
   
   // initialization
   for (int i; i<N; i++){
-    P[i].random_init()
+    P[i].random_init();
   }
 
-  // start data
-  cout<<"#initial pos is \n";
-  cout<<"0.0 "<<P1.print_pos()<<" "<<P1.print_vel()<<" "<<P1.print_theta()<<"\n";
-  P1.add_neigh(&P2);
   for (int i=1; i<=nstep;i++){
-    // evolution 
-    P1.force();
-    P2.force();
-    P1.step();
-    P2.step()
-    // print
-    cout<<i*dt<<" "<<P1.print_pos()<<" "<<P1.print_theta()<<" "<<P2.print_pos()<<" "<<P2.print_theta()<<"\n";
   }
   
   delete[] P;
