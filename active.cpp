@@ -41,9 +41,11 @@ double U0{0.1};
 double dt{0.01};
 double m{1.0};
 double R0{0.7};
+double R2{};
 int N{1};
 int nstep{1000};
 int seed_number{0};
+int nprint{10};
 
 // READ PARAMETERS FUNCTION FROM ROBERTO
 int read_parameters(int argc, char *argv[]){
@@ -67,9 +69,11 @@ int read_parameters(int argc, char *argv[]){
     case 'x':lx    =strtod(argv[i]+1,&endp);break;
     case 'y':ly    =strtod(argv[i]+1,&endp);break;
     case 'r':R0    =strtod(argv[i]+1,&endp);break;
+    case 'p':nprint=strtod(argv[i]+1,&endp);break;
     }
   }
   if (seed_number){srand(seed_number);}
+  R2 = R0*R0;
 return 0;
 }
 // PRINT PARAMETER FOR CHECK
@@ -83,14 +87,26 @@ void print_parameters(){
   cout << "#U  " << U0    << '\n'; 
   cout << "#o  " << omega0<< '\n'; 
   cout << "#dt " << dt    << '\n'; 
-  cout << "#q  " << qq    << '\n'; 
+  cout << "#q  " << qq    << '\n';
   cout << "#s  " << seed_number << '\n';
+  cout << "#lx " << lx    << '\n'; 
+  cout << "#ly " << ly    << '\n'; 
+  cout << "#R0 " << R0    << '\n';
+  cout << "#p  " << nprint << '\n';
 }
 
 // struct of pair of double for force calculations
 struct ForcesXY{
   double fx;
   double fy;
+
+  // OVERLOAD OPERATOR- FOR WRITING -F
+ForcesXY operator-() const {
+  ForcesXY Y;
+  Y.fx = -fx;
+  Y.fy = -fy;
+  return Y;
+}
 };
 
 // PARTICLE CLASS DEFINITION
@@ -144,7 +160,8 @@ public:
   ForcesXY fsub(double, double);
   // PBC
   void pbc();
-};
+
+}; // END OF CLASS SCOPE
 
 // random init
 void Particle::random_init(){
@@ -177,12 +194,23 @@ void pbc(Particle* P1, Particle* P2, double& x, double& y){
 
 ForcesXY fint(double x, double y){
   ForcesXY F;
-  double rr{x*x+y*y};
-  double rrsur02{(rr/R0)*(rr/R0)};
-  double rrsur06{rrsur02*rrsur02*rrsur02};
-  F.fx = U0*12/rr*(rrsur06*rrsur06*x - rrsur06*x);
-  F.fy = U0*12/rr*(rrsur06*rrsur06*y - rrsur06*y);
-  return F;
+  double rr2;
+  double r0surr2;
+  double r0surr6;
+  rr2 = {x*x + y*y};
+  if (rr2 < R2){
+    r0surr2 = R2/rr2;
+    r0surr6 = r0surr2*r0surr2*r0surr2;
+    F.fx = U0*12/(sqrt(rr2))*(r0surr2*r0surr6*x - r0surr6*x);
+    F.fy = U0*12/(sqrt(rr2))*(r0surr6*r0surr6*y - r0surr6*y);
+    // debugging
+    cout << F.fx << " -  "<< (-F).fx << "\n"; 
+    return F;
+  } else {
+    F.fx = 0.0;
+    F.fy = 0.0;
+    return F;
+  }
 }
 
 // function to make an evolution step
@@ -190,7 +218,7 @@ void Particle::step(){
   pos[0] += (vel[0]+cos(theta)*vel0)*dt/m/gam;
   pos[1] += (vel[1]+sin(theta)*vel0)*dt/m/gam;
   // PBC refolding
-  if (lx && ly){pbc();}
+  if (lx || ly){pbc();}
   theta  += (omega + omega0)*dt/m/gam;
 }
 
@@ -242,6 +270,7 @@ int main(int argc, char** argv){
 
   // SLIGHTLY LESS STUPID VERSION. 
   Particle* P = new Particle[N];
+  ForcesXY F{0};
   double x;
   double y;
   
@@ -260,15 +289,18 @@ int main(int argc, char** argv){
       for (int j=i+1; j<N; j++){
         //LET's TRY WITHOUT INTERACTIONS.
 	pbc(&P[i],&P[j],x,y);
-        //	  cout << "vettore distanza" << x << " " << y << "\n";
+	F = fint(x, y);
+	P[i].put_force(F);
+	P[j].put_force(-F);
+	//      cout << "vettore distanza" << x << " " << y << "\n";
       }
     }
     for (int i=0; i<N; i++){
       P[i].step();
     }
 
-    //    if (it%10 == 0){print_data(it, N, P);}
-    print_data(it, N, P);
+        if (it%nprint == 0){print_data(it, N, P);}
+//    print_data(it, N, P);
     
   }
   
