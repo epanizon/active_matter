@@ -88,9 +88,8 @@ int read_parameters(int argc, char *argv[]){
   ly = ((int)(ly*qq/(2*M_PI*sqrt(3))))*2*M_PI/qq*sqrt(3.);
   // particles too dense -> problem with random init
   if( (lx > 0) && (ly > 0) ){
-    Nmax = (int)(lx*ly*(3./2./R0)*(3./2./R0));
-    cout << " BOH " << Nmax << " " << R0 << " " << (lx*ly*(3./2./R0)*(3./2./R0)) << "\n" ; 
-  } else {Nmax = N+2;} 
+    Nmax = floor(lx/R0)*floor(ly/R0); 
+  } else { Nmax = N+2;} 
   if (N>=Nmax-1) {return 1;}
 
 return 0;
@@ -161,7 +160,7 @@ public:
   void put_force(ForcesXY F){vel[0]+=F.fx; vel[1]+=F.fx;}
  //to be added when neighbour list 
  // void add_neigh(int neigh){NN.push_back(neigh);}
-  void random_init(int);
+  void random_init(int, int);
 
   // OUTPUT OF DATA. QUITE SHITTY FOR NOW.
   string print_pos(){ return to_string(pos[0]) + " " + to_string(pos[1]);} 
@@ -187,33 +186,30 @@ public:
 void initialize_positions(Particle* P){
   vector<int> ran;
   int trial;
+  int nx, ny;
+  int nxmax;
+
+  if (lx ==0 && ly ==0) {
+    nxmax = int (sqrt(N*1.0));
+  } else if (lx ==0 && ly >0) {
+    nxmax = Nmax / floor (ly/R0) + 1; 
+  } else {nxmax = floor(lx/R0);}
 
   for (int i=0;i<Nmax;i++){ran.push_back(i);}
 
   for (int i=0; i<N; i++){
     trial = rand()%(Nmax-i-1);
-    P[i].random_init(trial);
+    nx = ran[trial]%nxmax;
+    ny = ran[trial]/nxmax;
+    P[i].random_init(nx,ny);
     ran.erase(ran.begin()+trial);
+    cout << "size of ran now= "<< ran.size()<< " and trial was " << trial << " and nx, ny were "<<nx << " "<<ny<< " \n";
   }
 }
 
-void Particle::random_init(int newpos){
-  int nx;
-  int ny;
-  int nxmax;
-  int nymax;
-  double llx{lx};
-  double lly{ly};
-
-  if (llx==0){llx=sqrt(N)*4*R0;}
-  if (llx==0){lly=sqrt(N)*4*R0;}
-  nxmax = int (llx*3./2./R0);
-  nymax = int (lly*3./2./R0);
-  nx = newpos%nxmax;
-  ny = newpos/nxmax;
-
-  pos[0] = ((double)rand() / RAND_MAX + nx) * R0*2./3. ;
-  pos[1] = ((double)rand() / RAND_MAX + ny) * R0*2./3.;
+void Particle::random_init(int nx, int ny){
+  pos[0] = ( nx + 0.5) * R0;
+  pos[1] = ( ny + 0.5) * R0;
   theta  = (double)rand() / RAND_MAX * M_PI;
 
 }
@@ -227,9 +223,9 @@ void Particle::pbc(){
 // PBC TO GET REAL VECTOR BETWEEN TWO MOTHERFUCKING PARTICLES.
 void pbc(Particle* P1, Particle* P2, double& x, double& y){
   x = (*P2).give_posx()-(*P1).give_posx();
-  if (lx){x-=floor(x/lx)*lx;}
+  if (lx){x-=floor(x/lx+0.5)*lx;}
   y = (*P2).give_posy()-(*P1).give_posy();
-  if (ly){y-=floor(y/ly)*ly;}
+  if (ly){y-=floor(y/ly+0.5)*ly;}
 }
 
 ForcesXY fint(double x, double y){
@@ -245,7 +241,7 @@ ForcesXY fint(double x, double y){
     ff = V0*12./(sqrt(rr2))*(r0surr6*r0surr6 - r0surr6);
     F.fx = ff*x;
     F.fy = ff*y;
-    cout << " TIPICAL INTERACTION FORCES WE ADD ARE " << F.fx << " "<< F.fy  << " due to vector " << x << " " << y<< "\n";
+    // BUG cout << " TIPICAL INTERACTION FORCES WE ADD ARE " << F.fx << " "<< F.fy  << " due to vector " << x << " " << y<< "\n";
 
     return F;
   } else {
@@ -275,7 +271,7 @@ void Particle::force(){
 
 void Particle::force_random(){
   // CHECK
-  cout << " A TIPICAL RANDOM FORCE WE ADD IS " <<  gaussrand()*sqrt(kT*2/gam/m/dt)  << "\n";
+  // BUG cout << " A TIPICAL RANDOM FORCE WE ADD IS " <<  gaussrand()*sqrt(kT*2/gam/m/dt)  << "\n";
   vel[0] += gaussrand()*sqrt(kT*2/gam/m/dt);
   vel[1] += gaussrand()*sqrt(kT*2/gam/m/dt);
   omega  += gaussrand()*sqrt(kT*2/gam/m/dt);
@@ -293,7 +289,7 @@ ForcesXY Particle::fsub(double x, double y){
   sub.fx = U0*2*qq*sin(qq*x)*cos(qq*y/sqrt(3));
   sub.fy = U0*2*qq*cos(qq*x)*sin(qq*y/sqrt(3))+U0*sin(2*y/qq);
   // CHECK
-  cout << " TIPICAL SUBSTRATE FORCES WE ADD ARE " << sub.fx << " "<< sub.fy  << "\n";
+  // BUG  cout << " TIPICAL SUBSTRATE FORCES WE ADD ARE " << sub.fx << " "<< sub.fy  << "\n";
 
   return sub;
 }
@@ -350,9 +346,11 @@ int main(int argc, char** argv){
     for (int i=0; i<N; i++){
       for (int j=i+1; j<N; j++){
         //LET's TRY WITHOUT INTERACTIONS.
+
+	//BUG	cout << i << " " << j << " "<<  P[i].print_pos() << " " << P[j].print_pos() << " BEFORE"  << "\n ";
 	pbc(&P[i],&P[j],x,y);
 	// CHECK
-	cout << P[i].print_pos() << " " << P[j].print_pos() << "\n ";
+	// BUG	cout << i << " " << j << " "<<  P[i].print_pos() << " " << P[j].print_pos() << " " << x << " " << y<< "\n ";
 	F = fint(x, y);
 	P[j].put_force(F);
 	P[i].put_force(-F);
