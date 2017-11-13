@@ -45,6 +45,8 @@ double m{1.0};
 double V0{1};
 double R0{0.7};
 double R2{};
+double Rflok{3};
+double Rflok2{};
 int N{1};
 int Nmax{};
 int nstep{1000};
@@ -76,13 +78,13 @@ int read_parameters(int argc, char *argv[]){
     case 'x':lx    =strtod(argv[i]+1,&endp);break;
     case 'y':ly    =strtod(argv[i]+1,&endp);break;
     case 'r':R0    =strtod(argv[i]+1,&endp);break;
+    case 'f':Rflok =strtod(argv[i]+1,&endp);break;
     case 'p':nprint=strtod(argv[i]+1,&endp);break;
     }
   }
-
+  R2=R0*R0;
+  Rflok2=Rflok*Rflok;
   if (seed_number){srand(seed_number);}
-
-  R2 = R0*R0;
   // PBC corrected for underlying substrate
   lx = ((int)(lx*qq/(2*M_PI)))*2*M_PI/qq;
   ly = ((int)(ly*qq/(2*M_PI*sqrt(3))))*2*M_PI/qq*sqrt(3.);
@@ -110,7 +112,8 @@ void print_parameters(){
   cout << "#lx " << lx    << '\n'; 
   cout << "#ly " << ly    << '\n'; 
   cout << "#R0 " << R0    << '\n';
-  cout << "#p  " << nprint << '\n';
+  cout << "Rflo" << Rflok << '\n'; 
+  cout << "#p  " << nprint<< '\n';
 }
 
 // struct of pair of double for force calculations
@@ -158,6 +161,7 @@ public:
   }
   void put_theta(double dir){theta = dir;}
   void put_force(ForcesXY F){vel[0]+=F.fx; vel[1]+=F.fy;}
+  void add_omega(double f){omega += f;}
  //to be added when neighbour list 
  // void add_neigh(int neigh){NN.push_back(neigh);}
   void random_init(int, int);
@@ -166,6 +170,7 @@ public:
   string print_pos(){ return to_string(pos[0]) + " " + to_string(pos[1]);} 
   double give_posx(){return pos[0];}
   double give_posy(){return pos[1];}
+  double give_theta(){return theta;}
   string print_vel(){return to_string(vel[0]) + " " + to_string(vel[1]);}
   string print_theta(double scale){return to_string(cos(theta)*scale) + " " + to_string(sin(theta)*scale);}
 
@@ -203,7 +208,6 @@ void initialize_positions(Particle* P){
     ny = ran[trial]/nxmax;
     P[i].random_init(nx,ny);
     ran.erase(ran.begin()+trial);
-    cout << "size of ran now= "<< ran.size()<< " and trial was " << trial << " and nx, ny were "<<nx << " "<<ny<< " \n";
   }
 }
 
@@ -211,7 +215,6 @@ void Particle::random_init(int nx, int ny){
   pos[0] = ( nx + 0.5) * R0;
   pos[1] = ( ny + 0.5) * R0;
   theta  = (double)rand() / RAND_MAX * M_PI;
-
 }
 
 // functions for keeping particle in BOX.
@@ -269,7 +272,6 @@ void Particle::force_random(){
   vel[0] += fx;
   fy = gaussrand()*sqrt(kT*2/gam/m/dt);
   vel[1] += fy;
-
   omega  += gaussrand()*sqrt(kT*2/gam/m/dt);
 }
 
@@ -296,11 +298,11 @@ void print_data(int it, int N, Particle* P){
 }
 
 void print_config(int it, int N, Particle* P){
-  fout << "# t=" << it*dt << "\n";
+  fout << N << "\n# t=" << it*dt << "\nempty line ";
   for (int i=0; i < N; i++){
     fout << "P"<< i << " " << P[i].print_pos() << " "<< P[i].print_theta(R0/2.) << " " << P[i].print_vel() <<"\n";
   }
-  fout << "\n \n";
+  fout << "\n\n";
 }
 
   // MAIN 
@@ -322,8 +324,11 @@ int main(int argc, char** argv){
   // SLIGHTLY LESS STUPID VERSION. 
   Particle* P = new Particle[N];
   ForcesXY F{0};
+  double* avgtheta = new double[N];
+  int* thetacount = new int[N];
   double x;
   double y;
+  double rr;
 
   // initialization of the N particles
   initialize_positions(P);
@@ -334,24 +339,36 @@ int main(int argc, char** argv){
     // SUBSTRATE AND RANDOM
     for (int i=0; i<N; i++){
       P[i].force();
+      avgtheta[i] = 0.0;
+      thetacount[i] = 0;
     }
     // INTERACTION BETWEEN PARTICLES
     for (int i=0; i<N; i++){
       for (int j=i+1; j<N; j++){
         //LET's TRY WITHOUT INTERACTIONS.
-
 	pbc(&P[i],&P[j],x,y);
-	if (x*x+y*y < R2){
-	  F = fint(x, y);
-	  P[j].put_force(F);
-	  P[i].put_force(-F);
-	  // cout << i<<" "<<j<<" P[i] "<<P[i].print_pos()<<" P[j] "<<P[j].print_pos()<<" r= "<<x*x+y*y<<" NN "<<x<<" "<<y<<" VECTOR "<<F.fx<<" "<<F.fy<<" \n";
-	}
+	rr = x*x+y*y;
+	if (rr < Rflok2){
+
+	  	  avgtheta[i]+=P[j].give_theta();
+	  	  thetacount[i]+=1;
+	  	  avgtheta[j]+=P[i].give_theta();
+	  	  thetacount[j]+=1;
+
+	  if (rr < R2){
+	    F = fint(x, y);
+	    P[j].put_force(F);
+	    P[i].put_force(-F);
+	  }
+	}	
       }
     }
-    for (int i=0; i<N; i++){
+    
+    for (int i=0; i<N;i++){
+      if (thetacount[i]) P[i].add_omega(avgtheta[i]/thetacount[i]);
       P[i].step();
     }
+
 
     //TO ADD LATER
     if (it%nprint == 0){print_data(it, N, P);}
@@ -360,7 +377,11 @@ int main(int argc, char** argv){
   }
   
   delete[] P;
+  delete[] thetacount;
+  delete[] avgtheta;
   fout.close();
   P = nullptr;
+  thetacount = nullptr;
+  avgtheta = nullptr;
   return 0;
 }
