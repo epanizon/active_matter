@@ -157,7 +157,7 @@ public:
     vel[1] = y;
   }
   void put_theta(double dir){theta = dir;}
-  void put_force(ForcesXY F){vel[0]+=F.fx; vel[1]+=F.fx;}
+  void put_force(ForcesXY F){vel[0]+=F.fx; vel[1]+=F.fy;}
  //to be added when neighbour list 
  // void add_neigh(int neigh){NN.push_back(neigh);}
   void random_init(int, int);
@@ -235,20 +235,12 @@ ForcesXY fint(double x, double y){
   double r0surr6;
   double ff;
   rr2 = {x*x + y*y};
-  if (rr2 < R2){
-    r0surr2 = R2/rr2;
-    r0surr6 = r0surr2*r0surr2*r0surr2;
-    ff = V0*12./(sqrt(rr2))*(r0surr6*r0surr6 - r0surr6);
-    F.fx = ff*x;
-    F.fy = ff*y;
-    // BUG cout << " TIPICAL INTERACTION FORCES WE ADD ARE " << F.fx << " "<< F.fy  << " due to vector " << x << " " << y<< "\n";
-
-    return F;
-  } else {
-    F.fx = 0.0;
-    F.fy = 0.0;
-    return F;
-  }
+  r0surr2 = R2/rr2;
+  r0surr6 = r0surr2*r0surr2*r0surr2;
+  ff = V0*12./rr2*(r0surr6*r0surr6 - r0surr6);
+  F.fx = ff*x;
+  F.fy = ff*y;
+  return F;
 }
 
 // function to make an evolution step
@@ -256,7 +248,9 @@ void Particle::step(){
   pos[0] += (vel[0]+cos(theta)*vel0)*dt/m/gam;
   pos[1] += (vel[1]+sin(theta)*vel0)*dt/m/gam;
   // PBC refolding
-  if (lx || ly){pbc();}
+  if (lx || ly){
+    pbc();
+  }
   theta  += (omega + omega0)*dt/m/gam;
 }
 
@@ -264,16 +258,18 @@ void Particle::step(){
 void Particle::force(){
   vel[0] = 0.0;
   vel[1] = 0.0;
-  omega = 0.0;
-  force_random();
+  omega = 0.0; 
+  force_random(); 
   force_substrate();
 }
 
 void Particle::force_random(){
-  // CHECK
-  // BUG cout << " A TIPICAL RANDOM FORCE WE ADD IS " <<  gaussrand()*sqrt(kT*2/gam/m/dt)  << "\n";
-  vel[0] += gaussrand()*sqrt(kT*2/gam/m/dt);
-  vel[1] += gaussrand()*sqrt(kT*2/gam/m/dt);
+  double fx, fy;
+  fx =  gaussrand()*sqrt(kT*2/gam/m/dt);
+  vel[0] += fx;
+  fy = gaussrand()*sqrt(kT*2/gam/m/dt);
+  vel[1] += fy;
+
   omega  += gaussrand()*sqrt(kT*2/gam/m/dt);
 }
 
@@ -288,9 +284,6 @@ ForcesXY Particle::fsub(double x, double y){
   ForcesXY sub;
   sub.fx = U0*2*qq*sin(qq*x)*cos(qq*y/sqrt(3));
   sub.fy = U0*2*qq*cos(qq*x)*sin(qq*y/sqrt(3))+U0*sin(2*y/qq);
-  // CHECK
-  // BUG  cout << " TIPICAL SUBSTRATE FORCES WE ADD ARE " << sub.fx << " "<< sub.fy  << "\n";
-
   return sub;
 }
 
@@ -315,7 +308,7 @@ int main(int argc, char** argv){
   // one day maybe parameters form file
   if (argc){
     int error{};
-    cout << "# INPUT FROM LINE.\n";
+    // cout << "# INPUT FROM LINE.\n";
     error = read_parameters(argc, argv);
     print_parameters();
 
@@ -347,23 +340,22 @@ int main(int argc, char** argv){
       for (int j=i+1; j<N; j++){
         //LET's TRY WITHOUT INTERACTIONS.
 
-	//BUG	cout << i << " " << j << " "<<  P[i].print_pos() << " " << P[j].print_pos() << " BEFORE"  << "\n ";
 	pbc(&P[i],&P[j],x,y);
-	// CHECK
-	// BUG	cout << i << " " << j << " "<<  P[i].print_pos() << " " << P[j].print_pos() << " " << x << " " << y<< "\n ";
-	F = fint(x, y);
-	P[j].put_force(F);
-	P[i].put_force(-F);
-	//      cout << "vettore distanza" << x << " " << y << "\n";
+	if (x*x+y*y < R2){
+	  F = fint(x, y);
+	  P[j].put_force(F);
+	  P[i].put_force(-F);
+	  // cout << i<<" "<<j<<" P[i] "<<P[i].print_pos()<<" P[j] "<<P[j].print_pos()<<" r= "<<x*x+y*y<<" NN "<<x<<" "<<y<<" VECTOR "<<F.fx<<" "<<F.fy<<" \n";
+	}
       }
     }
     for (int i=0; i<N; i++){
       P[i].step();
     }
 
-        if (it%nprint == 0){print_data(it, N, P);}
-	if (it%nprint == 0){print_config(it, N, P);}
-//    print_data(it, N, P);
+    //TO ADD LATER
+    if (it%nprint == 0){print_data(it, N, P);}
+    if (it%nprint == 0){print_config(it, N, P);}
     
   }
   
