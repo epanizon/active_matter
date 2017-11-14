@@ -58,39 +58,7 @@ int nprint{10};
 ofstream fout ("conf.xyz", ofstream::out);
 
 
-// READ PARAMETERS FUNCTION FROM ROBERTO
-int read_parameters(int argc, char *argv[]){
-  char parameter,*endp;
-  //initialize random number generator
-  srand (time(NULL));
-  for(int i=1;i<=argc-1;i++){
-    parameter=*argv[i];
-    switch(parameter){
-    case 'N':N     =strtod(argv[i]+1,&endp);break;
-    case 'n':nstep =strtod(argv[i]+1,&endp);break;
-    case 'v':vel0  =strtod(argv[i]+1,&endp);break;
-    case 'g':gam   =strtod(argv[i]+1,&endp);break;
-    case 'm':m     =strtod(argv[i]+1,&endp);break;
-    case 'T':kT    =strtod(argv[i]+1,&endp);break;
-    case 'U':U0    =strtod(argv[i]+1,&endp);break;
-    case 'V':V0    =strtod(argv[i]+1,&endp);break;
-    case 'o':omega0=strtod(argv[i]+1,&endp);break;
-    case 'd':dt    =strtod(argv[i]+1,&endp);break;
-    case 'q':qq    =strtod(argv[i]+1,&endp);break;
-    case 's':seed_number = strtod(argv[i]+1,&endp);break;
-    case 'x':lx    =strtod(argv[i]+1,&endp);break;
-    case 'y':ly    =strtod(argv[i]+1,&endp);break;
-    case 'r':R0    =strtod(argv[i]+1,&endp);break;
-    case 'f':Rflok =strtod(argv[i]+1,&endp);break;
-    case 'p':nprint=strtod(argv[i]+1,&endp);break;
-    }
-  }
-  R2=R0*R0;
-  Rflok2=Rflok*Rflok;
-  if (seed_number){srand(seed_number);}
-  // PBC corrected for underlying substrate
-  lx = ((int)(lx*qq/(2*M_PI)))*2*M_PI/qq;
-  ly = ((int)(ly*qq/(2*M_PI*sqrt(3))))*2*M_PI/qq*sqrt(3.);
+
   // CALCULATION NUMBERS FOR CELL LISTS
   Nlistx = floor(lx/R0);
   Nlist    = Nlistx * floor(ly/R0);  
