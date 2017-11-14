@@ -58,11 +58,46 @@ int nprint{10};
 ofstream fout ("conf.xyz", ofstream::out);
 
 
+// READ PARAMETERS FUNCTION FROM ROBERTO
+int read_parameters(int argc, char *argv[]){
+  char parameter,*endp;
+  //initialize random number generator
+  srand (time(NULL));
+  for(int i=1;i<=argc-1;i++){
+    parameter=*argv[i];
+    switch(parameter){
+    case 'N':N     =strtod(argv[i]+1,&endp);break;
+    case 'n':nstep =strtod(argv[i]+1,&endp);break;
+    case 'v':vel0  =strtod(argv[i]+1,&endp);break;
+    case 'g':gam   =strtod(argv[i]+1,&endp);break;
+    case 'm':m     =strtod(argv[i]+1,&endp);break;
+    case 'T':kT    =strtod(argv[i]+1,&endp);break;
+    case 'U':U0    =strtod(argv[i]+1,&endp);break;
+    case 'V':V0    =strtod(argv[i]+1,&endp);break;
+    case 'o':omega0=strtod(argv[i]+1,&endp);break;
+    case 'd':dt    =strtod(argv[i]+1,&endp);break;
+    case 'q':qq    =strtod(argv[i]+1,&endp);break;
+    case 's':seed_number = strtod(argv[i]+1,&endp);break;
+    case 'x':lx    =strtod(argv[i]+1,&endp);break;
+    case 'y':ly    =strtod(argv[i]+1,&endp);break;
+    case 'r':R0    =strtod(argv[i]+1,&endp);break;
+    case 'f':Rflok =strtod(argv[i]+1,&endp);break;
+    case 'p':nprint=strtod(argv[i]+1,&endp);break;
+    }
+  }
+  R2=R0*R0;
+  Rflok2=Rflok*Rflok;
+  if (seed_number){srand(seed_number);}
+  // PBC corrected for underlying substrate
+  lx = ((int)(lx*qq/(2*M_PI)))*2*M_PI/qq;
+  ly = ((int)(ly*qq/(2*M_PI*sqrt(3))))*2*M_PI/qq*sqrt(3.);
+  Nmax = floor(lx/R0)*floor(ly/R0);
+
 
   // CALCULATION NUMBERS FOR CELL LISTS
   Nlistx = floor(lx/R0);
-  Nlist    = Nlistx * floor(ly/R0);  
   Rlist[0] = lx/Nlist;
+  Nlist    = Nlistx * floor(ly/R0);  
   Rlist[1] = ly/floor(ly/R0);
  
   return 0;
@@ -175,8 +210,6 @@ void initialize_positions(Particle* P){
     P[i].random_init(nx,ny);
     ran.erase(ran.begin()+trial);
   } 
-  cout << "uhm uhm \n";
-
 }
 
 // initialize internal value of Particle
@@ -281,16 +314,10 @@ void print_config(int it, int N, Particle* P){
 // LIST ASSIGN
 void list_update(Particle* P, vector<vector<int>>& clist){
   int cellnum;
-  //does nothing    
-  
-  cout << "to enter i enter \n"; 
-
+  //performs list update
   for (int i=0; i<Nlist;i++) clist[i].clear();
   for (int i=0; i<N; i++){
-
     cellnum = floor(P[i].give_posx()/Rlist[0])+floor(P[i].give_posy()/Rlist[1])*Nlistx;
-
-    cout << "pop: cellnum "<<cellnum<<" \n"; 
     clist[cellnum].push_back(i);
   }
 }
@@ -325,11 +352,7 @@ int main(int argc, char** argv){
 
   // initialization of the N particles
   initialize_positions(P);
-  cout << "to exit i exit \n";
   print_config(0, N, P);
-
-  //DEBUG
-  cout << "to exit i exit \n";
 
   // first list call
   clist.resize(Nlist);
@@ -353,7 +376,6 @@ int main(int argc, char** argv){
 	  for (int l=0; j<clist[cell1].size(); l++){
 	    for (int m=0; j<clist[cell2].size(); j++){
 	      // DEBUG
-	      cout << "yep: l "<<l<<" m "<<m<<" c1 "<<cell1<<" c2 "<<cell2<<" \n"; 
 	      if (l!=m){
 		//LET's TRY WITHOUT INTERACTIONS.
 		pbc(&P[l],&P[m],x,y);
