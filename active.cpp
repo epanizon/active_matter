@@ -44,11 +44,14 @@ double dt{0.01};
 double m{1.0};
 double V0{1};
 double R0{0.7};
+double Rlist[2]{R0,R0};
 double R2{};
 double Rflok{3};
 double Rflok2{};
 int N{1};
 int Nmax{};
+int Nlist{};
+int Nlistx{};
 int nstep{1000};
 int seed_number{0};
 int nprint{10};
@@ -88,14 +91,15 @@ int read_parameters(int argc, char *argv[]){
   // PBC corrected for underlying substrate
   lx = ((int)(lx*qq/(2*M_PI)))*2*M_PI/qq;
   ly = ((int)(ly*qq/(2*M_PI*sqrt(3))))*2*M_PI/qq*sqrt(3.);
-  // particles too dense -> problem with random init
-  if( (lx > 0) && (ly > 0) ){
-    Nmax = floor(lx/R0)*floor(ly/R0); 
-  } else { Nmax = N+2;} 
-  if (N>=Nmax-1) {return 1;}
-
-return 0;
+  // CALCULATION NUMBERS FOR CELL LISTS
+  Nlistx = floor(lx/R0);
+  Nlist    = Nlistx * floor(ly/R0);  
+  Rlist[0] = lx/Nlist;
+  Rlist[1] = ly/floor(ly/R0);
+ 
+  return 0;
 }
+
 // PRINT PARAMETER FOR CHECK
 void print_parameters(){
   cout << "#N  " << N     << "\n";
@@ -112,7 +116,7 @@ void print_parameters(){
   cout << "#lx " << lx    << '\n'; 
   cout << "#ly " << ly    << '\n'; 
   cout << "#R0 " << R0    << '\n';
-  cout << "Rflo" << Rflok << '\n'; 
+  cout << "#Rf " << Rflok << '\n'; 
   cout << "#p  " << nprint<< '\n';
 }
 
@@ -186,21 +190,15 @@ public:
 
 }; // END OF CLASS SCOPE
 
-// random init
-
+// random init on a (sparce) square lattice of size R0.
 void initialize_positions(Particle* P){
   vector<int> ran;
   int trial;
   int nx, ny;
   int nxmax;
 
-  if (lx ==0 && ly ==0) {
-    nxmax = int (sqrt(N*1.0));
-  } else if (lx ==0 && ly >0) {
-    nxmax = Nmax / floor (ly/R0) + 1; 
-  } else {nxmax = floor(lx/R0);}
-
-  for (int i=0;i<Nmax;i++){ran.push_back(i);}
+  nxmax = floor(lx/R0);
+  for (int i=0;i<Nmax;i++){ran.push_back(i);}  
 
   for (int i=0; i<N; i++){
     trial = rand()%(Nmax-i-1);
@@ -208,9 +206,12 @@ void initialize_positions(Particle* P){
     ny = ran[trial]/nxmax;
     P[i].random_init(nx,ny);
     ran.erase(ran.begin()+trial);
-  }
+  } 
+  cout << "uhm uhm \n";
+
 }
 
+// initialize internal value of Particle
 void Particle::random_init(int nx, int ny){
   pos[0] = ( nx + 0.5) * R0;
   pos[1] = ( ny + 0.5) * R0;
@@ -219,18 +220,19 @@ void Particle::random_init(int nx, int ny){
 
 // functions for keeping particle in BOX.
 void Particle::pbc(){
-  if (lx) {pos[0] -= floor(pos[0]/lx)*lx;}
-  if (ly) {pos[1] -= floor(pos[1]/ly)*ly;}
+  pos[0] -= floor(pos[0]/lx)*lx;
+  pos[1] -= floor(pos[1]/ly)*ly;
 }
 
 // PBC TO GET REAL VECTOR BETWEEN TWO MOTHERFUCKING PARTICLES.
 void pbc(Particle* P1, Particle* P2, double& x, double& y){
   x = (*P2).give_posx()-(*P1).give_posx();
-  if (lx){x-=floor(x/lx+0.5)*lx;}
+  x-=floor(x/lx+0.5)*lx;
   y = (*P2).give_posy()-(*P1).give_posy();
-  if (ly){y-=floor(y/ly+0.5)*ly;}
+  y-=floor(y/ly+0.5)*ly;
 }
 
+// two body interaction (repulsive LJ) 
 ForcesXY fint(double x, double y){
   ForcesXY F;
   double rr2;
@@ -266,6 +268,7 @@ void Particle::force(){
   force_substrate();
 }
 
+// thermal noise
 void Particle::force_random(){
   double fx, fy;
   fx =  gaussrand()*sqrt(kT*2/gam/m/dt);
@@ -275,6 +278,7 @@ void Particle::force_random(){
   omega  += gaussrand()*sqrt(kT*2/gam/m/dt);
 }
 
+// substrate interaction
 void Particle::force_substrate(){
   ForcesXY forces;
   forces = fsub(pos[0],pos[1]);
@@ -282,6 +286,7 @@ void Particle::force_substrate(){
   vel[1] += forces.fy;
 }
 
+// substrate type
 ForcesXY Particle::fsub(double x, double y){
   ForcesXY sub;
   sub.fx = U0*2*qq*sin(qq*x)*cos(qq*y/sqrt(3));
@@ -306,8 +311,20 @@ void print_config(int it, int N, Particle* P){
 }
 
 // LIST ASSIGN
-void list_update(const Particle* P, vector<int>& clist){
-  //does nothing
+void list_update(Particle* P, vector<vector<int>>& clist){
+  int cellnum;
+  //does nothing    
+  
+  cout << "to enter i enter \n"; 
+
+  for (int i=0; i<Nlist;i++) clist[i].clear();
+  for (int i=0; i<N; i++){
+
+    cellnum = floor(P[i].give_posx()/Rlist[0])+floor(P[i].give_posy()/Rlist[1])*Nlistx;
+
+    cout << "pop: cellnum "<<cellnum<<" \n"; 
+    clist[cellnum].push_back(i);
+  }
 }
 
   // MAIN 
@@ -331,20 +348,23 @@ int main(int argc, char** argv){
   ForcesXY F{0};
   double* avgtheta = new double[N];
   int* thetacount = new int[N];
+  int cell2;
   double x;
   double y;
   double rr;
 
-  // LIST PARAMETERS
-  vector<int>** clist;
-  clist = new vector<int>*(N);
-  for(int i=0; i<N;i++) clist[i] = new vector<int>;
+  vector<vector<int>> clist;
 
   // initialization of the N particles
   initialize_positions(P);
+  cout << "to exit i exit \n";
   print_config(0, N, P);
 
+  //DEBUG
+  cout << "to exit i exit \n";
+
   // first list call
+  clist.resize(Nlist);
   list_update(P, clist);
 
   for (int it=1; it<=nstep;it++){
@@ -355,22 +375,37 @@ int main(int argc, char** argv){
       thetacount[i] = 0;
     }
     // INTERACTION BETWEEN PARTICLES
-    for (int i=0; i<N; i++){
-      for (int j=i+1; j<N; j++){
-        //LET's TRY WITHOUT INTERACTIONS.
-	pbc(&P[i],&P[j],x,y);
-	rr = x*x+y*y;
-	if (rr < Rflok2){
+    // cycle on total cells
+    for (int cell1=0; cell1<Nlist; cell1++){
+      //cicle on the four adiacent cells (to skip double count)
+      for (int j=0;j<2;j++){
+	for (int k=0;k<2;k++){
+	  cell2 = (cell1+j)%Nlistx+((cell1/Nlistx+k)%(Nlist/Nlistx))*Nlistx;
+	  // double cycle on list occupations
+	  for (int l=0; j<clist[cell1].size(); l++){
+	    for (int m=0; j<clist[cell2].size(); j++){
+	      // DEBUG
+	      cout << "yep: l "<<l<<" m "<<m<<" c1 "<<cell1<<" c2 "<<cell2<<" \n"; 
+	      if (l!=m){
+		//LET's TRY WITHOUT INTERACTIONS.
+		pbc(&P[l],&P[m],x,y);
+		rr = x*x+y*y;
+		if (rr < Rflok2){
 
-	  	  avgtheta[i]+=P[j].give_theta();
-	  	  thetacount[i]+=1;
-	  	  avgtheta[j]+=P[i].give_theta();
-	  	  thetacount[j]+=1;
+		  avgtheta[l]+=P[m].give_theta();
+		  thetacount[l]+=1;
+		  avgtheta[m]+=P[l].give_theta();
+		  thetacount[m]+=1;
 
-	  if (rr < R2){
-	    F = fint(x, y);
-	    P[j].put_force(F);
-	    P[i].put_force(-F);
+		  if (rr < R2){
+		    F = fint(x, y);
+		    P[m].put_force(F);
+		    P[l].put_force(-F);
+		  }
+		}
+	      }
+	    }
+
 	  }
 	}	
       }
