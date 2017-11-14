@@ -305,6 +305,11 @@ void print_config(int it, int N, Particle* P){
   fout << "\n\n";
 }
 
+// LIST ASSIGN
+void list_update(const Particle* P, vector<int>& clist){
+  //does nothing
+}
+
   // MAIN 
 int main(int argc, char** argv){
   // one day maybe parameters form file
@@ -330,10 +335,17 @@ int main(int argc, char** argv){
   double y;
   double rr;
 
+  // LIST PARAMETERS
+  vector<int>** clist;
+  clist = new vector<int>*(N);
+  for(int i=0; i<N;i++) clist[i] = new vector<int>;
+
   // initialization of the N particles
   initialize_positions(P);
   print_config(0, N, P);
 
+  // first list call
+  list_update(P, clist);
 
   for (int it=1; it<=nstep;it++){
     // SUBSTRATE AND RANDOM
