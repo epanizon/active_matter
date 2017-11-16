@@ -121,6 +121,8 @@ void print_parameters(){
   cout << "#R0 " << R0    << '\n';
   cout << "#Rf " << Rflok << '\n'; 
   cout << "#p  " << nprint<< '\n';
+  cout << "#Reynold's Number (should be << 1) = " << m*vel0/R0/gam/gam << '\n';
+  
 }
 
 // struct of pair of double for force calculations
@@ -291,7 +293,8 @@ void Particle::force_substrate(){
 ForcesXY Particle::fsub(double x, double y){
   ForcesXY sub;
   sub.fx = U0*qq*2*sin(qq*x)*cos(qq*y/sqrt(3));
-  sub.fy = U0*qq*( 2/sqrt(3.)*cos(qq*x)*sin(qq*y/sqrt(3))+sin(2*y*qq/sqrt(3))*sqrt(3.)*2);
+  sub.fy = U0*qq*( 2/sqrt(3.)*cos(qq*x)*sin(qq*y/sqrt(3))+sin(2*y*qq/sqrt(3))/sqrt(3.)*2);
+  //cout<< "check ratio of forces "<< sub.fx/sub.fy << '\n';
   return sub;
 }
 
@@ -381,18 +384,18 @@ int main(int argc, char** argv){
 		pbc(&P[l],&P[m],x,y);
 		rr = x*x+y*y;
 		if (rr < Rflok2){
-
 		  avgtheta[l]+=P[m].give_theta();
 		  thetacount[l]+=1;
 		  avgtheta[m]+=P[l].give_theta();
 		  thetacount[m]+=1;
-
-		  if (rr < R2){
-		    F = fint(x, y);
-		    P[m].put_force(F);
-		    P[l].put_force(-F);
-		  }
 		}
+		
+	        if (rr < R2){
+		  F = fint(x, y);
+		  P[m].put_force(F);
+		  P[l].put_force(-F);
+	        }
+
 	      }
 	    }
 
