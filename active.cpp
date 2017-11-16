@@ -92,7 +92,10 @@ int read_parameters(int argc, char *argv[]){
   lx = ((int)(lx*qq/(2*M_PI)))*2*M_PI/qq;
   ly = ((int)(ly*qq/(2*M_PI*sqrt(3))))*2*M_PI/qq*sqrt(3.);
   Nmax = floor(lx/R0)*floor(ly/R0);
-
+  if (Nmax < N) {
+    cout << "TOO MANY PARTICLES IN TOO SMALL A BOX";
+    return 1;
+  }
 
   // CALCULATION NUMBERS FOR CELL LISTS
   Nlistx = floor(lx/R0);
