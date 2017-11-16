@@ -281,7 +281,7 @@ void Particle::force_random(){
   vel[0] += fx;
   fy = gaussrand()*sqrt(kT*2/gam/m/dt);
   vel[1] += fy;
-  omega  += gaussrand()*sqrt(kT*2/gam/m/dt);
+  omega  += gaussrand()*R0*sqrt(3*kT*2/gam/m/dt);
 }
 
 // substrate interaction
