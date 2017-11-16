@@ -290,8 +290,8 @@ void Particle::force_substrate(){
 // substrate type
 ForcesXY Particle::fsub(double x, double y){
   ForcesXY sub;
-  sub.fx = U0*2*qq*sin(qq*x)*cos(qq*y/sqrt(3));
-  sub.fy = U0*2*qq*cos(qq*x)*sin(qq*y/sqrt(3))+U0*sin(2*y/qq);
+  sub.fx = U0*qq*2*sin(qq*x)*cos(qq*y/sqrt(3));
+  sub.fy = U0*qq*( 2/sqrt(3.)*cos(qq*x)*sin(qq*y/sqrt(3))+sin(2*y*qq/sqrt(3))*sqrt(3.)*2);
   return sub;
 }
 
