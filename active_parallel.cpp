@@ -167,8 +167,8 @@ void initialize_positions(double* X, double* Y, double* Theta){
 // functions for keeping particle in BOX.
 void pbc(double* X, double* Y){
   for (int i=0; i<Nmax; i++){
-    X[0] -= floor(X[0]/lx)*lx;
-    Y[1] -= floor(Y[1]/ly)*ly;
+    X[i] -= floor(X[i]/lx)*lx;
+    Y[i] -= floor(Y[i]/ly)*ly;
   }
 }
 
@@ -208,7 +208,7 @@ ForcesXY fsub(double x, double y){
 void print_data(int it, int N, double* X, double* Y, double* Vx, double* Vy, double* Theta){
   cout << it*dt << " " ;
   for (int i=0; i < N; i++){
-    cout <<X[i]<<" "<<Y[i]<< " "<<Vx[i]<< " "<<Vy[i]<<" "<<cos(Theta[i])<<" "<<sin(Theta[i]);
+    cout <<X[i]<<" "<<Y[i]<< " "<<Vx[i]<< " "<<Vy[i]<<" "<<cos(Theta[i])<<" "<<sin(Theta[i])<< " ";
   }
   cout << "\n";
 }
@@ -277,8 +277,8 @@ int main(int argc, char** argv){
       F = fsub(Xpos[i],Ypos[i]);
       Xvel[i]  = F.fx + gaussrand()*R0*sqrt(3*kT*2/gam/m/dt);
       Yvel[i]  = F.fy + gaussrand()*sqrt(kT*2/gam/m/dt);
-		Omega[i] = gaussrand()*R0*sqrt(3*kT*2/gam/m/dt);    
-      }
+      Omega[i] = gaussrand()*R0*sqrt(3*kT*2/gam/m/dt);    
+    }
 
     // INIT INTERACTION ANGLES
     for (int i=0; i<N; i++){
@@ -289,51 +289,52 @@ int main(int argc, char** argv){
     for (int cell1=0; cell1<Nlist; cell1++){
       //cicle on the four adiacent cells (to skip double count)
       for (int j=0;j<2;j++){
-			for (int k=0;k<2;k++){
-			  int cell2 = (cell1+j)%Nlistx+((cell1/Nlistx+k)%(Nlist/Nlistx))*Nlistx;
+	for (int k=0;k<2;k++){
+	  int cell2 = (cell1+j)%Nlistx+((cell1/Nlistx+k)%(Nlist/Nlistx))*Nlistx;
 	  // double cycle on list occupations
-			  for (int l=0; j<clist[cell1].size(); l++){
-				  for (int m=0; j<clist[cell2].size(); j++){
-	 		     // DEBUG
-	 			     if (l!=m){
-					// find true vector
-							pbc(Xpos[l], Xpos[m], Ypos[l], Ypos[m], x, y);
-							rr = x*x+y*y;
-							if (rr < Rflok2){
-							   avgtheta[l]  +=Theta[m];
-							   thetacount[l]+=1;
-							   avgtheta[m]  +=Theta[l];
-							   thetacount[m]+=1;
-							}
+	  for (int l=0; j<clist[cell1].size(); l++){
+	    for (int m=0; j<clist[cell2].size(); j++){
+	      // DEBUG
+	      if (l!=m){
+		// find true vector
+		pbc(Xpos[l], Xpos[m], Ypos[l], Ypos[m], x, y);
+		// DEBUG
+		cout << l<<" "<<m<<" "<<Xpos[l]<<" "<<Xpos[m]<< " "<<x<<"\n";
+		cout << l<<" "<<m<<" "<<Xpos[l]<<" "<<Xpos[m]<< " "<<x<<"\n";
+		rr = x*x+y*y;
+		if (rr < Rflok2){
+		  avgtheta[l]  +=Theta[m];
+		  thetacount[l]+=1;
+		  avgtheta[m]  +=Theta[l];
+		  thetacount[m]+=1;
+		}
 		
-	      		 	   if (rr < R2){
-							   F = fint(x, y);
-							   Xvel[m] += F.fx;
-	    			 	      Yvel[m] += F.fy;
-               	 	   Xvel[l] -= F.fx;
-		 					   Yvel[l] -= F.fy;
-	        		 	   }
-			     	   }
-	    		  }
-		  	  }
-	     }	
-     }
-   }
-
+		if (rr < R2){
+		  F = fint(x, y);
+		  Xvel[m] -= F.fx;
+		  Yvel[m] -= F.fy;
+		  Xvel[l] += F.fx;
+		  Yvel[l] += F.fy;
+		}
+	      }
+	    }
+	  }
+	}	
+      }
+    }
+    
     for (int i=0; i<N;i++){
       if (thetacount[i]) Omega[i] += (avgtheta[i]/thetacount[i]);
       Xpos[i]  += (Xvel[i]+cos(Theta[i])*vel0)*dt/m/gam;
       Ypos[i]  += (Yvel[i]+sin(Theta[i])*vel0)*dt/m/gam;
       Theta[i] += (Omega[i] + omega0)*dt/m/gam;
     }
-
-
     // PBC enforce.
-    pbc(Xpos, Xvel);
+    pbc(Xpos, Xvel);  
+    list_update(Xpos, Ypos, clist);
 
-    //TO ADD LATER
-    if (it%nprint == 0){print_data(it, N, Xpos, Ypos, Xvel, Yvel, Theta);}
-    if (it%nprint == 0){print_config(it, N, Xpos, Ypos, Xvel, Yvel, Theta);} 
+    //  if (it%nprint == 0){print_data(it, N, Xpos, Ypos, Xvel, Yvel, Theta);}
+    //if (it%nprint == 0){print_config(it, N, Xpos, Ypos, Xvel, Yvel, Theta);} 
   }
 
 
