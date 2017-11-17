@@ -1,0 +1,9 @@
+#include <iostream>
+
+use namespace std
+
+int main(){
+int ID = 0;
+cout << "hello" << ID;
+cout << " world\n" MM ID;
+}
