@@ -204,7 +204,7 @@ ForcesXY fsub(double x, double y){
   return sub;
 }
 
-
+// PRINT DATA
 void print_data(int it, int N, double* X, double* Y, double* Vx, double* Vy, double* Theta){
   cout << it*dt << " " ;
   for (int i=0; i < N; i++){
@@ -213,7 +213,8 @@ void print_data(int it, int N, double* X, double* Y, double* Vx, double* Vy, dou
   cout << "\n";
 }
 
- void print_config(int it, int N, double* X, double* Y, double* Vx, double* Vy, double* Theta){
+// PRINT CONFIG
+void print_config(int it, int N, double* X, double* Y, double* Vx, double* Vy, double* Theta){
   fout << N << "\n# t=" << it*dt << "\n";
   for (int i=0; i < N; i++){
     fout << "P"<< i <<" "<<X[i]<<" "<<Y[i]<<" "<<cos(Theta[i])*R0<<" "<<sin(Theta[i])*R0<<" "<<Vx[i]<<" "<<Vy[i]<<"\n";
@@ -233,7 +234,7 @@ void print_data(int it, int N, double* X, double* Y, double* Vx, double* Vy, dou
   }
 }
 
-  // MAIN 
+// MAIN 
 int main(int argc, char** argv){
   // one day maybe parameters form file
   if (argc){
@@ -299,26 +300,28 @@ int main(int argc, char** argv){
 	    for (int l=0; j<clist[cell1].size(); l++){
 	      for (int m=0; j<clist[cell2].size(); j++){
 		// DEBUG
-		if (l!=m){
+		int uno{clist[cell1][l]};
+		int due{clist[cell2][m]};
+		if (uno!=due){
 		  // find true vector
-		  pbc(Xpos[l], Xpos[m], Ypos[l], Ypos[m], x, y);
+		  pbc(Xpos[uno], Xpos[due], Ypos[uno], Ypos[due], x, y);
 		  // DEBUG
-		  cout << "lontanox" << l<<" "<<m<<" "<<Xpos[l]<<" "<<Xpos[m]<< " "<<x<<"\n";
-		  cout << "lontanoy" << l<<" "<<m<<" "<<Xpos[l]<<" "<<Xpos[m]<< " "<<x<<"\n";
+		  cout << "lontanox" << l<<" "<<m<<" "<<Xpos[uno]<<" "<<Xpos[due]<< " "<<x<<"\n";
+		  cout << "lontanoy" << l<<" "<<m<<" "<<Xpos[uno]<<" "<<Xpos[due]<< " "<<x<<"\n";
 		  rr = x*x+y*y;
 		  if (rr < Rflok2){
-		    avgtheta[l]  +=Theta[m];
-		    thetacount[l]+=1;
-		    avgtheta[m]  +=Theta[l];
-		    thetacount[m]+=1;
+		    avgtheta[uno]  +=Theta[due];
+		    thetacount[uno]+=1;
+		    avgtheta[due]  +=Theta[uno];
+		    thetacount[due]+=1;
 		  }
 		
 		  if (rr < R2){
 		    F = fint(x, y);
-		    Xvel[m] += F.fx;
-		    Yvel[m] += F.fy;
-		    Xvel[l] -= F.fx;
-		    Yvel[l] -= F.fy;
+		    Xvel[due] += F.fx;
+		    Yvel[due] += F.fy;
+		    Xvel[uno] -= F.fx;
+		    Yvel[uno] -= F.fy;
 		  }
 		}
 	      }
