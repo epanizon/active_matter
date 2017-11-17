@@ -100,7 +100,7 @@ int read_parameters(int argc, char *argv[]){
 
   // CALCULATION NUMBERS FOR CELL LISTS
   Nlistx = floor(lx/R0);
-  Rlist[0] = lx/Nlist;
+  Rlist[0] = lx/Nlistx;
   Nlist    = Nlistx * floor(ly/R0);  
   Rlist[1] = ly/floor(ly/R0);
  
@@ -228,6 +228,7 @@ void print_data(int it, int N, double* X, double* Y, double* Vx, double* Vy, dou
   for (int i=0; i<Nlist;i++) clist[i].clear();
   for (int i=0; i<N; i++){
     cellnum = floor(X[i]/Rlist[0])+floor(Y[i]/Rlist[1])*Nlistx;
+  //  cout << "cellnum "<< cellnum <<"\n cc"<< X[i] << " "<< Y[i]<<" " << Nlist<< " " << Rlist[0]<< " "<< Rlist[1]<<"\n"; 
     clist[cellnum].push_back(i);
   }
 }
@@ -291,35 +292,39 @@ int main(int argc, char** argv){
       for (int j=0;j<2;j++){
 	for (int k=0;k<2;k++){
 	  int cell2 = (cell1+j)%Nlistx+((cell1/Nlistx+k)%(Nlist/Nlistx))*Nlistx;
-	  // double cycle on list occupations
-	  for (int l=0; j<clist[cell1].size(); l++){
-	    for (int m=0; j<clist[cell2].size(); j++){
-	      // DEBUG
-	      if (l!=m){
-		// find true vector
-		pbc(Xpos[l], Xpos[m], Ypos[l], Ypos[m], x, y);
+	  //DEBUG
+	  cout << " cell1 e cell2 " << cell1 <<" "<< cell2<< " "<< Nlistx<<" "<<Nlist/Nlistx<< " "<<"\n";
+	  if (clist[cell2].size()){
+	    // double cycle on list occupations
+	    for (int l=0; j<clist[cell1].size(); l++){
+	      for (int m=0; j<clist[cell2].size(); j++){
 		// DEBUG
-		cout << l<<" "<<m<<" "<<Xpos[l]<<" "<<Xpos[m]<< " "<<x<<"\n";
-		cout << l<<" "<<m<<" "<<Xpos[l]<<" "<<Xpos[m]<< " "<<x<<"\n";
-		rr = x*x+y*y;
-		if (rr < Rflok2){
-		  avgtheta[l]  +=Theta[m];
-		  thetacount[l]+=1;
-		  avgtheta[m]  +=Theta[l];
-		  thetacount[m]+=1;
-		}
+		if (l!=m){
+		  // find true vector
+		  pbc(Xpos[l], Xpos[m], Ypos[l], Ypos[m], x, y);
+		  // DEBUG
+		  cout << "lontanox" << l<<" "<<m<<" "<<Xpos[l]<<" "<<Xpos[m]<< " "<<x<<"\n";
+		  cout << "lontanoy" << l<<" "<<m<<" "<<Xpos[l]<<" "<<Xpos[m]<< " "<<x<<"\n";
+		  rr = x*x+y*y;
+		  if (rr < Rflok2){
+		    avgtheta[l]  +=Theta[m];
+		    thetacount[l]+=1;
+		    avgtheta[m]  +=Theta[l];
+		    thetacount[m]+=1;
+		  }
 		
-		if (rr < R2){
-		  F = fint(x, y);
-		  Xvel[m] -= F.fx;
-		  Yvel[m] -= F.fy;
-		  Xvel[l] += F.fx;
-		  Yvel[l] += F.fy;
+		  if (rr < R2){
+		    F = fint(x, y);
+		    Xvel[m] += F.fx;
+		    Yvel[m] += F.fy;
+		    Xvel[l] -= F.fx;
+		    Yvel[l] -= F.fy;
+		  }
 		}
 	      }
 	    }
-	  }
-	}	
+	  }	
+	}
       }
     }
     
@@ -333,8 +338,8 @@ int main(int argc, char** argv){
     pbc(Xpos, Xvel);  
     list_update(Xpos, Ypos, clist);
 
-    //  if (it%nprint == 0){print_data(it, N, Xpos, Ypos, Xvel, Yvel, Theta);}
-    //if (it%nprint == 0){print_config(it, N, Xpos, Ypos, Xvel, Yvel, Theta);} 
+    if (it%nprint == 0){print_data(it, N, Xpos, Ypos, Xvel, Yvel, Theta);}
+    if (it%nprint == 0){print_config(it, N, Xpos, Ypos, Xvel, Yvel, Theta);} 
   }
 
 
