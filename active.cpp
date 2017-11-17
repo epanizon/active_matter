@@ -311,7 +311,7 @@ void print_data(int it, int N, Particle* P){
 }
 
 void print_config(int it, int N, Particle* P){
-  fout << N << "\n# t=" << it*dt << "\nempty line ";
+  fout << N << "\n# t=" << it*dt << "empty line \n";
   for (int i=0; i < N; i++){
     fout << "P"<< i << " " << P[i].print_pos() << " "<< P[i].print_theta(R0/2.) << " " << P[i].print_vel() <<"\n";
   }
