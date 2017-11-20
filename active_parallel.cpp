@@ -49,6 +49,7 @@ double Rlist[2]{R0,R0};
 double R2{};
 double Rflok{3};
 double Rflok2{};
+int sub_relax{1000};
 int N{1};
 int Nmax{};
 int Nlist{};
@@ -84,6 +85,7 @@ int read_parameters(int argc, char *argv[]){
     case 'r':R0    =strtod(argv[i]+1,&endp);break;
     case 'f':Rflok =strtod(argv[i]+1,&endp);break;
     case 'p':nprint=strtod(argv[i]+1,&endp);break;
+    case 'S':sub_relax=strtod(argv[i]+1,&endp);break;
     }
   }
   R2=R0*R0;
@@ -199,10 +201,10 @@ ForcesXY fint(double x, double y){
 }
 
 // substrate interaction and random kicks
-ForcesXY fsub(double x, double y){
+ForcesXY fsub(double x, double y, double scale){
   ForcesXY sub;
-  sub.fx  = U0*qq*2*sin(qq*x)*cos(qq*y/sqrt(3));
-  sub.fy  = U0*qq*( 2/sqrt(3.)*cos(qq*x)*sin(qq*y/sqrt(3))+sin(2*y*qq/sqrt(3))/sqrt(3.)*2);
+  sub.fx  = scale*U0*qq*2*sin(qq*x)*cos(qq*y/sqrt(3));
+  sub.fy  = scale*U0*qq*( 2/sqrt(3.)*cos(qq*x)*sin(qq*y/sqrt(3))+sin(2*y*qq/sqrt(3))/sqrt(3.)*2);
   return sub;
 }
 
@@ -275,6 +277,8 @@ int main(int argc, char** argv){
   double* Omega = new double[N]{};
   double* avgtheta = new double[N]{};
   int* thetacount = new int[N]{};
+  double stepcontrol{0.0};
+  double relax{0};
   vector<int> head;
   vector<int> lscl;  
 
@@ -289,10 +293,13 @@ int main(int argc, char** argv){
 
   for (int it=1; it<=nstep;it++){
 
+    
     // SUBSTRATE
-    #pragma omp parallel for schedule(auto) private(F)
+    relax = double(it) / sub_relax;
+    #pragma omp parallel for schedule(auto) private(F) firstprivate(relax)
     for (int i=0; i<N; i++){
-      F = fsub(Xpos[i],Ypos[i]);
+      if (it <  sub_relax) F = fsub(Xpos[i],Ypos[i], relax);  
+      if (it >= sub_relax) F = fsub(Xpos[i],Ypos[i], 1);
       Xvel[i]  = F.fx;
       Yvel[i]  = F.fy;   
     }
@@ -324,24 +331,30 @@ int main(int argc, char** argv){
 	  double x, y, rr;
 	  while (uno > -1){
 	    // DEBUG
-	    due = head[cell2];
+	    #pragma omp critical
+            due = head[cell2];
+
 	    while (due > -1){
 	      if (uno < due){
 		pbc(Xpos[uno], Xpos[due], Ypos[uno], Ypos[due], x, y);
 		rr = x*x+y*y;
 		if (rr < Rflok2){
-		  avgtheta[uno]  +=Theta[due];
-		  thetacount[uno]+=1;
-		  avgtheta[due]  +=Theta[uno];
-		  thetacount[due]+=1;
+		#pragma omp critical
+		  {avgtheta[uno]  +=Theta[due];
+		  thetacount[uno]+=1;}
+		#pragma omp critical
+		  {avgtheta[due]  +=Theta[uno];
+		  thetacount[due]+=1;}
 		}
 		
 		if (rr < R2){
 		  F = fint(x, y);
-		  Xvel[due] += F.fx;
-		  Yvel[due] += F.fy;
-		  Xvel[uno] -= F.fx;
-		  Yvel[uno] -= F.fy;
+		#pragma omp critical
+		 {Xvel[due] += F.fx;
+		  Yvel[due] += F.fy;}
+		#pragma omp critical
+		 {Xvel[uno] -= F.fx;
+		  Yvel[uno] -= F.fy;}
 		}
 	      }
 	      due = lscl[due];
