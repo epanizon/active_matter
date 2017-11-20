@@ -98,11 +98,13 @@ int read_parameters(int argc, char *argv[]){
     return 1;
   }
 
+  // LIST CUTOFF LARGEST BETWEEN VICSEK AND LJ
+  Rlist[0]=max(R0,Rflok);
   // CALCULATION NUMBERS FOR CELL LISTS
-  Nlistx = floor(lx/R0);
+  Nlistx = floor(lx/max(R0,Rflok));
   Rlist[0] = lx/Nlistx;
-  Nlist    = Nlistx * floor(ly/R0);  
-  Rlist[1] = ly/floor(ly/R0);
+  Nlist    = Nlistx * floor(ly/max(R0,Rflok));  
+  Rlist[1] = ly/floor(ly/max(R0,Rflok));
  
   return 0;
 }
@@ -223,16 +225,29 @@ void print_config(int it, int N, double* X, double* Y, double* Vx, double* Vy, d
 }
 
 // LIST ASSIGN
- void list_update(double* X, double* Y, vector<vector<int>>& clist){
+void list_update(double* X, double* Y, vector<int>& head, vector<int>& lscl){
   int cellnum;
   //performs list update
-  for (int i=0; i<Nlist;i++) clist[i].clear();
+  // -1 MEANS EMPTY.
+  for (int i=0; i<Nlist;i++) head[i] = -1;
   for (int i=0; i<N; i++){
     cellnum = floor(X[i]/Rlist[0])+floor(Y[i]/Rlist[1])*Nlistx;
-  //  cout << "cellnum "<< cellnum <<"\n cc"<< X[i] << " "<< Y[i]<<" " << Nlist<< " " << Rlist[0]<< " "<< Rlist[1]<<endl; 
-    clist[cellnum].push_back(i);
+    lscl[i] = head[cellnum];
+    head[cellnum] = i;
   }
 }
+
+// CORRECT MODULO OF NEIGHBOUR CELL
+int neighcell(int c1, int ix, int iy, int Nx, int Ntot){
+ int newix;
+ int newiy;
+ newix = (c1+ix)%Nx;
+ if (newix<0) newix+=Nx;
+ newiy = (c1/Nx+iy)%(Ntot/Nx);
+ if (newiy<0) newiy+=Ntot/Nx;
+ return newix + newiy*Nx;
+}
+
 
 // MAIN 
 int main(int argc, char** argv){
@@ -260,103 +275,102 @@ int main(int argc, char** argv){
   double* Omega = new double[N]{};
   double* avgtheta = new double[N]{};
   int* thetacount = new int[N]{};
-  double x;
-  double y;
-  double rr;
-  vector<vector<int>> clist;
+  vector<int> head;
+  vector<int> lscl;  
+
+  //debug move 
+  double maxmove{};
+  double move{};
+  int   imaxmove{};
+  int  imaxmove2;
+
 
   // initialization of the N particles
   initialize_positions(Xpos, Ypos, Theta);
   print_config(0, N, Xpos, Ypos, Xvel, Yvel, Theta);
 
-  // first list call
-  clist.resize(Nlist);
-  list_update(Xpos, Ypos, clist);
+  head.resize(Nlist);
+  lscl.resize(N);
+
+  list_update(Xpos, Ypos, head, lscl);
 
   for (int it=1; it<=nstep;it++){
     // SUBSTRATE
     for (int i=0; i<N; i++){
       F = fsub(Xpos[i],Ypos[i]);
       Xvel[i]  = F.fx;
-      Yvel[i]  = F.fy;
-      Omega[i] = gaussrand()*R0*sqrt(3*kT*2/gam/m/dt);    
-    }
-    //DEBUG
-    for (int i=0; i<N;i++){
-      cout <<"F sub " << i <<" "<<Xvel[i] << " "<<Yvel[i]<<endl;
+      Yvel[i]  = F.fy;   
     }
 
-    // RANDOM
+
     for (int i=0; i<N; i++){
-      Xvel[i]  += gaussrand()*R0*sqrt(3*kT*2/gam/m/dt);
-      Yvel[i]  += gaussrand()*sqrt(kT*2/gam/m/dt);
+      double ranx;
+      double rany;
+      ranx = gaussrand()*R0*sqrt(3*kT*2/gam/m/dt);
+      rany = gaussrand()*R0*sqrt(3*kT*2/gam/m/dt);
+      Xvel[i]  += ranx;
+      Yvel[i]  += rany;
       Omega[i] = gaussrand()*R0*sqrt(3*kT*2/gam/m/dt);    
-    }
-
-    //DEBUG
-    for (int i=0; i<N;i++){
-      cout <<"F random " << i <<" "<<Xvel[i] << " "<<Yvel[i]<<endl;
     }
 
     // INIT INTERACTION ANGLES
     for (int i=0; i<N; i++){
       avgtheta[i] = 0.0;
-      thetacount[i] = 0;}
-
+      thetacount[i] = 0;
+    }
 
     for (int cell1=0; cell1<Nlist; cell1++){
-      //cicle on the four adiacent cells (to skip double count)
+      // CYCLE ON ALL ADIACENT CELLS
       for (int j=-1;j<2;j++){
-	for (int k=0;k<2;k++){
-	  if (j==-1 && k==0) continue;
-	  int cell2 = (cell1+j)%Nlistx+((cell1/Nlistx+k)%(Nlist/Nlistx))*Nlistx;
-	  //DEBUG
-	  // cout << " cell1 e cell2 " << cell1 <<" "<< cell2<< " "<< Nlistx<<" "<<Nlist/Nlistx<< " "<<endl;
-	  if (clist[cell2].size()){
-	    // double cycle on list occupations
-	    for (int l=0; l<clist[cell1].size(); l++){
-	      for (int m=0; m<clist[cell2].size(); m++){
-		// DEBUG
-		int uno{clist[cell1][l]};
-		int due{clist[cell2][m]};
-		if (uno!=due){
-		  // find true vector
-		  pbc(Xpos[uno], Xpos[due], Ypos[uno], Ypos[due], x, y);
-		  rr = x*x+y*y;
-		  // DEBUG
-
-		  if (rr < Rflok2){
-		    avgtheta[uno]  +=Theta[due];
-		    thetacount[uno]+=1;
-		    avgtheta[due]  +=Theta[uno];
-		    thetacount[due]+=1;
-		  }
+	for (int k=-1;k<2;k++){
+	  // SCALAR NUMBER OF CELL
+	  int cell2 = neighcell(cell1, j, k, Nlistx, Nlist); 
+	  // uno WILL CYCLE ON ATOMS IN FIRST CELL
+	  int uno = head[cell1];
+	  // due WILL CYCLE ON ATOMS IN SECOND CELL
+	  int due;
+	  double x, y, rr;
+	  while (uno > -1){
+	    // DEBUG
+	    due = head[cell2];
+	    while (due > -1){
+	      if (uno < due){
+		pbc(Xpos[uno], Xpos[due], Ypos[uno], Ypos[due], x, y);
+		rr = x*x+y*y;
+		if (rr < Rflok2){
+		  avgtheta[uno]  +=Theta[due];
+		  thetacount[uno]+=1;
+		  avgtheta[due]  +=Theta[uno];
+		  thetacount[due]+=1;
+		}
 		
-		  if (rr < R2){
-		    F = fint(x, y);
-		    Xvel[due] += F.fx;
-		    Yvel[due] += F.fy;
-		    Xvel[uno] -= F.fx;
-		    Yvel[uno] -= F.fy;
-	            cout << "lontanox" << l<<" "<<m<<" "<<Xpos[uno]<<" "<<Xpos[due]<< " "<<x<<" "<<y<<" r="<<rr<< " Fx="<<F.fx<< " Fy="<<F.fy<<endl;
-		  }
+		if (rr < R2){
+		  F = fint(x, y);
+		  Xvel[due] += F.fx;
+		  Yvel[due] += F.fy;
+		  Xvel[uno] -= F.fx;
+		  Yvel[uno] -= F.fy;
 		}
 	      }
+	      due = lscl[due];
 	    }
-	  }	
-	}
+	    uno = lscl[uno];
+	  }
+	}	
       }
     }
-    
+
     for (int i=0; i<N;i++){
       if (thetacount[i]) Omega[i] += (avgtheta[i]/thetacount[i]);
       Xpos[i]  += (Xvel[i]+cos(Theta[i])*vel0)*dt/m/gam;
       Ypos[i]  += (Yvel[i]+sin(Theta[i])*vel0)*dt/m/gam;
       Theta[i] += (Omega[i] + omega0)*dt/m/gam;
     }
+
+
     // PBC enforce.
     pbc(Xpos, Ypos);  
-    list_update(Xpos, Ypos, clist);
+    list_update(Xpos, Ypos, head, lscl);
 
     if (it%nprint == 0){print_data(it, N, Xpos, Ypos, Xvel, Yvel, Theta);}
     if (it%nprint == 0){print_config(it, N, Xpos, Ypos, Xvel, Yvel, Theta);} 
