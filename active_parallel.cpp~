@@ -308,7 +308,7 @@ int main(int argc, char** argv){
       //cicle on the four adiacent cells (to skip double count)
       for (int j=-1;j<2;j++){
 	for (int k=0;k<2;k++){
-	  if (j==-1 && k==0) continue;
+	  if (j=-1 && k==0) continue;
 	  int cell2 = (cell1+j)%Nlistx+((cell1/Nlistx+k)%(Nlist/Nlistx))*Nlistx;
 	  //DEBUG
 	  // cout << " cell1 e cell2 " << cell1 <<" "<< cell2<< " "<< Nlistx<<" "<<Nlist/Nlistx<< " "<<endl;

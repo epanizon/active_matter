@@ -1,4 +1,4 @@
 *.xyz*
-*.out
+*out
 *.x
 active.cpp~
