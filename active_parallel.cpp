@@ -225,15 +225,15 @@ void print_config(int it, int N, double* X, double* Y, double* Vx, double* Vy, d
 }
 
 // LIST ASSIGN
-void list_update(double* X, double* Y, vector<int>& head, vector<int>& lscl){
+void list_update(double* X, double* Y, vector<int>& H, vector<int>& L){ // changed H and L
   int cellnum;
   //performs list update
   // -1 MEANS EMPTY.
-  for (int i=0; i<Nlist;i++) head[i] = -1;
+  for (int i=0; i<Nlist;i++) H[i] = -1;
   for (int i=0; i<N; i++){
     cellnum = floor(X[i]/Rlist[0])+floor(Y[i]/Rlist[1])*Nlistx;
-    lscl[i] = head[cellnum];
-    head[cellnum] = i;
+    L[i] = H[cellnum];
+    H[cellnum] = i;
   }
 }
 
@@ -278,13 +278,6 @@ int main(int argc, char** argv){
   vector<int> head;
   vector<int> lscl;  
 
-  //debug move 
-  double maxmove{};
-  double move{};
-  int   imaxmove{};
-  int  imaxmove2;
-
-
   // initialization of the N particles
   initialize_positions(Xpos, Ypos, Theta);
   print_config(0, N, Xpos, Ypos, Xvel, Yvel, Theta);
@@ -295,22 +288,20 @@ int main(int argc, char** argv){
   list_update(Xpos, Ypos, head, lscl);
 
   for (int it=1; it<=nstep;it++){
+
     // SUBSTRATE
+    #pragma omp parallel for schedule(auto) private(F)
     for (int i=0; i<N; i++){
       F = fsub(Xpos[i],Ypos[i]);
       Xvel[i]  = F.fx;
       Yvel[i]  = F.fy;   
     }
 
-
+    //RANDOM
     for (int i=0; i<N; i++){
-      double ranx;
-      double rany;
-      ranx = gaussrand()*R0*sqrt(3*kT*2/gam/m/dt);
-      rany = gaussrand()*R0*sqrt(3*kT*2/gam/m/dt);
-      Xvel[i]  += ranx;
-      Yvel[i]  += rany;
-      Omega[i] = gaussrand()*R0*sqrt(3*kT*2/gam/m/dt);    
+      Xvel[i]  += gaussrand()*R0*sqrt(3*kT*2/gam/m/dt);
+      Yvel[i]  += gaussrand()*R0*sqrt(3*kT*2/gam/m/dt);
+      Omega[i]  = gaussrand()*R0*sqrt(3*kT*2/gam/m/dt);    
     }
 
     // INIT INTERACTION ANGLES
@@ -319,6 +310,7 @@ int main(int argc, char** argv){
       thetacount[i] = 0;
     }
 
+    #pragma omp parallel for schedule(auto) firstprivate(Nlist, Nlistx, head, lscl, Rflok2, R2) private(F) shared(Xpos, Ypos, Xvel, Yvel, Theta, Omega, avgtheta, thetacount)
     for (int cell1=0; cell1<Nlist; cell1++){
       // CYCLE ON ALL ADIACENT CELLS
       for (int j=-1;j<2;j++){
@@ -360,6 +352,7 @@ int main(int argc, char** argv){
       }
     }
 
+    #pragma omp parallel for schedule(auto) firstprivate(vel0, dt, m, gam)
     for (int i=0; i<N;i++){
       if (thetacount[i]) Omega[i] += (avgtheta[i]/thetacount[i]);
       Xpos[i]  += (Xvel[i]+cos(Theta[i])*vel0)*dt/m/gam;

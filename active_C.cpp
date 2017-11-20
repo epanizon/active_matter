@@ -325,7 +325,6 @@ int main(int argc, char** argv){
 	for (int k=-1;k<2;k++){
 	  // SCALAR NUMBER OF CELL
 	  int cell2 = neighcell(cell1, j, k, Nlistx, Nlist); 
-	  //cout << " cell1 and cell2 "<<cell1 << " "<<cell2<<endl;
 	  // uno WILL CYCLE ON ATOMS IN FIRST CELL
 	  int uno = head[cell1];
 	  // due WILL CYCLE ON ATOMS IN SECOND CELL
