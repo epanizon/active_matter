@@ -49,6 +49,7 @@ double Rlist[2]{R0,R0};
 double R2{};
 double Rflok{3};
 double Rflok2{};
+int NUM_THREADS{1};
 int sub_relax{1000};
 int N{1};
 int Nmax{};
@@ -86,6 +87,7 @@ int read_parameters(int argc, char *argv[]){
     case 'f':Rflok =strtod(argv[i]+1,&endp);break;
     case 'p':nprint=strtod(argv[i]+1,&endp);break;
     case 'S':sub_relax=strtod(argv[i]+1,&endp);break;
+    case 'P':NUM_THREADS=strtod(argv[i]+1,&endp);break;
     }
   }
   R2=R0*R0;
@@ -234,6 +236,9 @@ void list_update(double* X, double* Y, vector<int>& H, vector<int>& L){ // chang
   for (int i=0; i<Nlist;i++) H[i] = -1;
   for (int i=0; i<N; i++){
     cellnum = floor(X[i]/Rlist[0])+floor(Y[i]/Rlist[1])*Nlistx;
+    if (cellnum <0 || cellnum >= Nlist){
+	cerr << " proble in list_update with P"<<i<<" X="<<X[i]<<" Y="<<Y[i]<< " cell="<<cellnum<<flush;
+	}
     L[i] = H[cellnum];
     H[cellnum] = i;
   }
@@ -291,8 +296,11 @@ int main(int argc, char** argv){
 
   list_update(Xpos, Ypos, head, lscl);
 
+  omp_set_num_threads(NUM_THREADS);
+
   for (int it=1; it<=nstep;it++){
 
+    cerr << "starting "<<it<< " "<<flush;
     
     // SUBSTRATE
     relax = double(it) / sub_relax;
@@ -304,6 +312,8 @@ int main(int argc, char** argv){
       Yvel[i]  = F.fy;   
     }
 
+    cerr << "substrate done "<<flush;
+
     //RANDOM
     for (int i=0; i<N; i++){
       Xvel[i]  += gaussrand()*R0*sqrt(3*kT*2/gam/m/dt);
@@ -311,11 +321,14 @@ int main(int argc, char** argv){
       Omega[i]  = gaussrand()*R0*sqrt(3*kT*2/gam/m/dt);    
     }
 
+    cerr << "random done "<<flush;
+
     // INIT INTERACTION ANGLES
     for (int i=0; i<N; i++){
       avgtheta[i] = 0.0;
       thetacount[i] = 0;
     }
+    cerr << "interaction angle done "<<flush;
 
     #pragma omp parallel for schedule(auto) firstprivate(Nlist, Nlistx, head, lscl, Rflok2, R2) private(F) shared(Xpos, Ypos, Xvel, Yvel, Theta, Omega, avgtheta, thetacount)
     for (int cell1=0; cell1<Nlist; cell1++){
@@ -330,7 +343,6 @@ int main(int argc, char** argv){
 	  int due;
 	  double x, y, rr;
 	  while (uno > -1){
-	    // DEBUG
 	    #pragma omp critical
             due = head[cell2];
 
@@ -365,6 +377,8 @@ int main(int argc, char** argv){
       }
     }
 
+    cerr << "interaction tot done "<<flush;
+
     #pragma omp parallel for schedule(auto) firstprivate(vel0, dt, m, gam)
     for (int i=0; i<N;i++){
       if (thetacount[i]) Omega[i] += (avgtheta[i]/thetacount[i]);
@@ -373,10 +387,15 @@ int main(int argc, char** argv){
       Theta[i] += (Omega[i] + omega0)*dt/m/gam;
     }
 
+    cerr << "step done "<<flush;
 
     // PBC enforce.
     pbc(Xpos, Ypos);  
+
+    cerr << "pbc done "<<flush;
     list_update(Xpos, Ypos, head, lscl);
+
+    cerr << "list update done "<< endl;
 
     if (it%nprint == 0){print_data(it, N, Xpos, Ypos, Xvel, Yvel, Theta);}
     if (it%nprint == 0){print_config(it, N, Xpos, Ypos, Xvel, Yvel, Theta);} 
