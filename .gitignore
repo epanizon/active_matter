@@ -1,4 +1,4 @@
 *.xyz*
 *out
 *.x
-active.cpp~
+active_parallel.cpp~
