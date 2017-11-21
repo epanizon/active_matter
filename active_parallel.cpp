@@ -88,6 +88,7 @@ int read_parameters(int argc, char *argv[]){
     case 'p':nprint=strtod(argv[i]+1,&endp);break;
     case 'S':sub_relax=strtod(argv[i]+1,&endp);break;
     case 'P':NUM_THREADS=strtod(argv[i]+1,&endp);break;
+    case 'L':Rlist[0]=strtod(argv[i]+1,&endp);break;
     }
   }
   R2=R0*R0;
@@ -103,7 +104,7 @@ int read_parameters(int argc, char *argv[]){
   }
 
   // LIST CUTOFF LARGEST BETWEEN VICSEK AND LJ
-  Rlist[0]=max(R0,Rflok);
+  Rlist[0]=max(max(R0,Rflok),Rlist[0]);
   // CALCULATION NUMBERS FOR CELL LISTS
   Nlistx = floor(lx/max(R0,Rflok));
   Rlist[0] = lx/Nlistx;
@@ -130,6 +131,8 @@ void print_parameters(){
   cout << "#ly " << ly    << endl; 
   cout << "#R0 " << R0    << endl;
   cout << "#Rf " << Rflok << endl; 
+  cout << "#RLx "<< Rlist[0] << endl; 
+  cout << "#RLy "<< Rlist[1] << endl; 
   cout << "#p  " << nprint<< endl;
   cout << "#Reynold's Number (should be << 1) = " << m*vel0/R0/gam/gam << endl;
   
@@ -165,7 +168,7 @@ void initialize_positions(double* X, double* Y, double* Theta){
     ny = ran[trial]/nxmax;
     X[i] = (nx + 0.5)*R0;
     Y[i] = (ny + 0.5)*R0;
-    Theta[i] = (double)rand()/RAND_MAX*M_PI;
+    Theta[i] = (double)rand()/RAND_MAX*M_PI*2;
     ran.erase(ran.begin()+trial);
   } 
 }
@@ -281,7 +284,10 @@ int main(int argc, char** argv){
   double* Theta = new double[N]{};
   double* Omega = new double[N]{};
   double* avgtheta = new double[N]{};
+  double incrx;
+  double incry;
   int* thetacount = new int[N]{};
+  int  num_wrong_step{0};
   double stepcontrol{0.0};
   double relax{0};
   vector<int> head;
@@ -300,7 +306,7 @@ int main(int argc, char** argv){
 
   for (int it=1; it<=nstep;it++){
 
-    cerr << "starting "<<it<< " "<<flush;
+    //cerr << "starting "<<it<< " "<<flush;
     
     // SUBSTRATE
     relax = double(it) / sub_relax;
@@ -312,44 +318,49 @@ int main(int argc, char** argv){
       Yvel[i]  = F.fy;   
     }
 
-    cerr << "substrate done "<<flush;
+    //cerr << "substrate done "<<flush;
 
-    //RANDOM
+    //RANDOM DONT DO IT PARALLEL. 
     for (int i=0; i<N; i++){
       Xvel[i]  += gaussrand()*R0*sqrt(3*kT*2/gam/m/dt);
       Yvel[i]  += gaussrand()*R0*sqrt(3*kT*2/gam/m/dt);
       Omega[i]  = gaussrand()*R0*sqrt(3*kT*2/gam/m/dt);    
     }
 
-    cerr << "random done "<<flush;
+    //cerr << "random done "<<flush;
 
     // INIT INTERACTION ANGLES
     for (int i=0; i<N; i++){
       avgtheta[i] = 0.0;
       thetacount[i] = 0;
     }
-    cerr << "interaction angle done "<<flush;
+    //cerr << "interaction angle done "<<endl;
 
     #pragma omp parallel for schedule(auto) firstprivate(Nlist, Nlistx, head, lscl, Rflok2, R2) private(F) shared(Xpos, Ypos, Xvel, Yvel, Theta, Omega, avgtheta, thetacount)
     for (int cell1=0; cell1<Nlist; cell1++){
+      if (head[cell1]<0) continue;
       // CYCLE ON ALL ADIACENT CELLS
       for (int j=-1;j<2;j++){
 	for (int k=-1;k<2;k++){
 	  // SCALAR NUMBER OF CELL
 	  int cell2 = neighcell(cell1, j, k, Nlistx, Nlist); 
+	  //cerr << "c1= "<<cell1<< " c2= "<<cell2<< endl; 
 	  // uno WILL CYCLE ON ATOMS IN FIRST CELL
 	  int uno = head[cell1];
+	  //cerr << " c1-head= "<<uno <<endl;;
 	  // due WILL CYCLE ON ATOMS IN SECOND CELL
 	  int due;
 	  double x, y, rr;
 	  while (uno > -1){
 	    #pragma omp critical
             due = head[cell2];
-
+	    //cerr << " c2-head= "<<due<<endl; 
 	    while (due > -1){
+	    //cerr << " c1-P=" << uno<< " c2=P=" << due<< endl; 
 	      if (uno < due){
 		pbc(Xpos[uno], Xpos[due], Ypos[uno], Ypos[due], x, y);
 		rr = x*x+y*y;
+
 		if (rr < Rflok2){
 		#pragma omp critical
 		  {avgtheta[uno]  +=Theta[due];
@@ -377,30 +388,36 @@ int main(int argc, char** argv){
       }
     }
 
-    cerr << "interaction tot done "<<flush;
+    //cerr << "interaction tot done "<<flush;
+
+
 
     #pragma omp parallel for schedule(auto) firstprivate(vel0, dt, m, gam)
     for (int i=0; i<N;i++){
-      if (thetacount[i]) Omega[i] += (avgtheta[i]/thetacount[i]);
-      Xpos[i]  += (Xvel[i]+cos(Theta[i])*vel0)*dt/m/gam;
-      Ypos[i]  += (Yvel[i]+sin(Theta[i])*vel0)*dt/m/gam;
+      incrx=(Xvel[i]+cos(Theta[i])*vel0)*dt/m/gam;
+      incry=(Yvel[i]+sin(Theta[i])*vel0)*dt/m/gam;
+      if (abs(incrx)>0.1) {incrx =incrx/abs(incrx)*0.1; num_wrong_step++;}
+      if (abs(incry)>0.1) {incry =incry/abs(incry)*0.1; num_wrong_step++;}
+      if (thetacount[i]) Omega[i] += (avgtheta[i]/thetacount[i])-Theta[i];
+      Xpos[i]  += incrx;
+      Ypos[i]  += incry;
       Theta[i] += (Omega[i] + omega0)*dt/m/gam;
     }
-
-    cerr << "step done "<<flush;
+    //cerr << "step done "<<flush;
 
     // PBC enforce.
     pbc(Xpos, Ypos);  
 
-    cerr << "pbc done "<<flush;
+    //cerr << "pbc done "<<flush;
     list_update(Xpos, Ypos, head, lscl);
 
-    cerr << "list update done "<< endl;
+    //cerr << "list update done "<< endl;
 
     if (it%nprint == 0){print_data(it, N, Xpos, Ypos, Xvel, Yvel, Theta);}
     if (it%nprint == 0){print_config(it, N, Xpos, Ypos, Xvel, Yvel, Theta);} 
   }
 
+  cerr << "NUMBERS OF WRONG STEPS: "<<num_wrong_step<<endl;
 
   delete[] Xpos, Ypos, Xvel, Yvel, Theta, Omega;
   delete[] thetacount;
